@@ -1,0 +1,186 @@
+#!/usr/bin/env sh
+
+#The nexus app fetch script 
+#Author cann
+#NOTICE: This script cannot support the snapshots version
+
+
+#**********************************************************
+HOST=10.0.0.21:4444
+IPATH=/usr/local
+GROUP_ID=com.tgx.app
+REPO=releases
+#**********************************************************
+#NPATH=/usr/local/nxfetch
+PRG="$0"
+while [ -h "$PRG" ] ; do
+    ls=`ls -ld "$PRG"`
+    link=`expr "$ls" : '.*-> \(.*\)$'`
+    if expr "$link" : '/.*' > /dev/null; then
+        PRG="$link"
+    else
+        PRG=`dirname "$PRG"`"/$link"
+    fi
+done
+SAVED="`pwd`"
+cd "`dirname \"$PRG\"`/.." >&-
+NPATH="`pwd -P`/nxfetch"
+
+#the alia scripts path
+INSTALLAPP=$NPATH/bin/installApp.sh
+REMOVEAPP=$NPATH/bin/removeApp.sh
+LISTAPP=/listApp.sh
+CHECKAPP=$NPATH/bin/checkApp.sh
+
+#----------------------------------------------------------
+VERSION=
+APPNAME=
+#---------------------------------------------------------- 
+
+usage(){
+cat <<EOF
+
+usage: $0 -options { install | remove | check } /$appName
+eg:
+	$0 -v 1.0.0 install TgxQueenServer
+	$0 -v 1.0.0 remove TgxQueenServer
+	$0 check TgxQueenServer
+
+
+OPTIONS:
+	-h	Show this message
+	-v 	version
+
+default options values:
+	v ---- latest release version
+
+EOF
+}
+
+
+#check the user
+checkUser(){
+	IDEXE="/usr/xpg4/bin/id"
+	if [ ! -x "$IDEXE" ]
+	then
+		IDEXE="/usr/bin/id"
+		if [ ! -x "$IDEXE" ]
+		then 
+			echo "Unable to locate 'id'."
+			echo "Please report this message along with the location of the command on your system."
+			exit 1
+		fi
+	fi
+
+	#check if the script is running as root
+	LUID=`$IDEXE -u`
+	if [ ! $LUID -eq 0 ]
+	then 
+		echo "*********************************************"
+		echo "*************NEED TO RUN AS ROOT*************"
+		echo "*********************************************"
+		echo "if you want ro run this script, you have to run as root."	
+		exit 1
+	fi
+}
+
+
+#check the second agrs
+checkSecondAgrs(){
+	#check the user
+	checkUser
+	#check the nx base dir
+	if [ ! -d $NPATH ]
+	then   	
+		echo "nx base dir not exists, creating it."
+		mkdir  -p $NPATH
+	fi
+        if [ -z $APPNAME ]
+        then
+                echo "missing appName input, use \"$0 help\" to see more..."
+                exit 1
+        fi
+}
+
+#install the app
+installApp(){
+	echo "starting to install the app ..."
+	echo "$INSTALLAPP -v $VERSION -r $REPO -n $HOST -p $NPATH -i $IPATH -g $GROUP_ID $APPNAME"	
+	if [ -z $VERSION ]
+	then
+		sh $INSTALLAPP -r $REPO -n $HOST -p $NPATH -i $IPATH -g $GROUP_ID $APPNAME
+	else 
+		sh $INSTALLAPP -v $VERSION -r $REPO -n $HOST -p $NPATH -i $IPATH -g $GROUP_ID $APPNAME
+	fi
+}
+
+
+#remove the app
+removeApp(){
+	echo "starting to remove the app ..."
+	echo "$REMOVEAPP -v $VERSION -p $NPATH -i $IPATH $APPNAME"
+	if [ -z $VERSION ]
+	then
+		sh $REMOVEAPP -p $NPATH -i $IPATH $APPNAME
+	else
+		sh $REMOVEAPP -v $VERSION -p $NPATH -i $IPATH $APPNAME
+	fi
+}
+
+#check all versions of the app
+checkVersion(){
+	echo "starting to check the versions ..."
+	sh $CHECKAPP -n $HOST -r $REPO -g $GROUP_ID $APPNAME
+	
+}
+
+#Read the options
+while getopts "hv:" OPTION
+do
+        case $OPTION in
+        h)
+                usage
+                exit 1
+                ;;
+        v)
+                VERSION=$OPTARG
+                ;;
+        ?)
+                usage
+                exit
+                ;;
+        esac
+done
+
+#case the input agrs
+	case "$({
+   shift $(($#-2))
+   echo $1
+})" in 
+	'install')
+		APPNAME=$(eval "echo \$$#")
+		checkSecondAgrs
+		installApp
+		;;
+	'check')
+		APPNAME=$(eval "echo \$$#")
+		checkSecondAgrs
+		checkVersion
+		;;
+	'help')
+		usage
+		exit 1
+		;;
+	'remove')
+		APPNAME=$(eval "echo \$$#")
+		checkSecondAgrs
+		removeApp
+		;;
+	*)
+		echo "Usage: $0 { install \$appName| remove \$appName | check \$appName | help }"
+		echo "Use \"$0 -h\" to see details"
+		exit 1
+		;;
+	esac
+
+
